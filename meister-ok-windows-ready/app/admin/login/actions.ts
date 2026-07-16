@@ -1,2 +1,0 @@
-"use server";import {db} from "@/lib/db";import bcrypt from "bcryptjs";import {createSession} from "@/lib/auth";import {redirect} from "next/navigation";
-export async function login(f:FormData){const email=String(f.get("email")||"").toLowerCase();const password=String(f.get("password")||"");const a=await db.admin.findUnique({where:{email}});if(!a||!await bcrypt.compare(password,a.passwordHash))redirect("/admin/login?error=1");await createSession(a.id);redirect("/admin")}
