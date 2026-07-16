@@ -1,0 +1,60 @@
+services:
+  app:
+    build: .
+    image: meister-ok:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/data/meister.db
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - meister_data:/data
+      - meister_uploads:/app/public/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  backup:
+    image: meister-ok:latest
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    entrypoint: ["node", "scripts/backup.mjs"]
+    environment:
+      DATABASE_URL: file:/data/meister.db
+      UPLOAD_DIR: /app/public/uploads
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - meister_data:/data
+      - meister_uploads:/app/public/uploads:ro
+      - meister_backups:/backups
+    security_opt:
+      - no-new-privileges:true
+
+  restore:
+    image: meister-ok:latest
+    profiles: ["tools"]
+    entrypoint: ["/app/scripts/restore.sh"]
+    environment:
+      BACKUP_NAME: ${BACKUP_NAME:-}
+    volumes:
+      - meister_data:/data
+      - meister_uploads:/app/public/uploads
+      - meister_backups:/backups:ro
+
+volumes:
+  meister_data:
+  meister_uploads:
+  meister_backups:
